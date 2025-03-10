@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clicker RPG Game</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            text-align: center;
+            background: linear-gradient(45deg, #121212, #2a2a2a);
+            color: #ffffff;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            position: relative;
+            user-select: none; /* Prevent text selection */
+        }
+        .game-container {
+            max-width: 600px;
+            margin: auto;
+            padding: 20px;
+            background-color: #222222;
+            border-radius: 20px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+            border: 2px solid #444444;
+            position: relative;
+            z-index: 1;
+        }
+        h1 {
+            color: #0f0;
+            font-size: 40px;
+            text-shadow: 0 0 10px #0f0, 0 0 20px #0f0, 0 0 30px #0f0;
+        }
+        .coin-display, .damage-display {
+            font-size: 24px;
+            margin: 10px;
+            text-shadow: 0 0 10px #0ff, 0 0 20px #0ff;
+        }
+        .health-bar {
+            width: 100%;
+            height: 20px;
+            margin-bottom: 10px;
+            background-color: #555555;
+            border-radius: 10px;
+            transition: width 0.3s ease-in-out;
+        }
+        .button {
+            padding: 15px 25px;
+            margin: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 10px;
+            border: none;
+            outline: none;
+            text-shadow: 0 0 5px #fff, 0 0 10px #fff;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.6);
+            transition: all 0.3s ease;
+        }
+        .upgrade-button {
+            background-color: #0ff;
+            color: #000;
+        }
+        .autoclicker-button {
+            background-color: #f06;
+            color: #fff;
+        }
+        .button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 15px #ff00ff, 0 0 20px #ff00ff;
+        }
+        .autoclicker-button:hover {
+            background-color: #ff33cc;
+        }
+        .upgrade-button:hover {
+            background-color: #00ffff;
+        }
+        .autoclicker-button:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+        #status {
+            color: #ff00ff;
+            font-size: 20px;
+            text-shadow: 0 0 10px #ff00ff;
+        }
+        #enemy-health {
+            font-size: 28px;
+            margin: 10px;
+            text-shadow: 0 0 10px #ff00ff;
+        }
+
+        /* Mini-game section styling */
+        #mini-game {
+            margin-top: 30px;
+            font-size: 20px;
+            color: #fff;
+            text-shadow: 0 0 5px #0ff, 0 0 10px #0ff;
+            padding-top: 10px;
+        }
+
+        .circle {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background-color: #0ff;
+            display: inline-block;
+            cursor: pointer;
+            margin: 20px;
+            position: relative;
+        }
+        .circle-number {
+            font-size: 24px;
+            color: #ffffff;
+            font-weight: bold;
+            position: absolute;
+            top: 50%; /* Positioning the text vertically centered */
+            left: 50%; /* Positioning the text horizontally centered */
+            transform: translate(-50%, -200%); /* Shift the text up by 200% */
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>Clicker RPG</h1>
+        <div class="coin-display">Coins: 0</div>
+        <div class="damage-display">Damage per Second: 0</div>
+        
+        <!-- Health Bar -->
+        <div class="health-bar" id="health-bar"></div>
+        
+        <div id="enemy-health">Health: 10/15</div>
+
+        <button id="click-btn" class="button">Click to Deal Damage</button>
+        <button id="upgrade-damage" class="button upgrade-button">Buy x1.5 Damage (100 coins)</button>
+        <button id="upgrade-health" class="button upgrade-button">Buy x2 Health (50 coins)</button>
+        <button id="autoclicker" class="button autoclicker-button">Buy Autoclicker (1000 coins)</button>
+
+        <div id="status"></div>
+    </div>
+
+    <!-- Mini-game section below the main game -->
+    <div id="mini-game">
+        <div class="circle" id="mini-game-circle">
+            <div class="circle-number" id="mantissa-exponent">1e0</div>
+        </div>
+    </div>
+
+    <script>
+        let coins = 0;
+        let damage = 1;
+        let health = 10;
+        let maxHealth = getRandomHealth();
+        let enemyHealth = maxHealth;
+        let autoclickerRate = 0; // Initially 0, only activates once purchased
+        let upgradeDamageCost = 100;
+        let upgradeHealthCost = 50;
+        let autoclickerCost = 1000;
+        let clicksPerSecond = 0;
+
+        // Mini-game: Mantissa and Exponent
+        let mantissa = 1;
+        let exponent = 0;
+        const mantissaExponentDisplay = document.getElementById('mantissa-exponent');
+        const miniGameCircle = document.getElementById('mini-game-circle');
+
+        // Health upgrade multiplier tracker
+        let healthUpgradeMultiplier = 1;
+
+        // Elements
+        const coinDisplay = document.querySelector('.coin-display');
+        const damageDisplay = document.querySelector('.damage-display');
+        const healthBar = document.getElementById('health-bar');
+        const enemyHealthDisplay = document.getElementById('enemy-health');
+        const statusDisplay = document.getElementById('status');
+        const clickBtn = document.getElementById('click-btn');
+        const upgradeDamageBtn = document.getElementById('upgrade-damage');
+        const upgradeHealthBtn = document.getElementById('upgrade-health');
+        const autoclickerBtn = document.getElementById('autoclicker');
+
+        // Time tracking to calculate clicks per second
+        let lastClickTime = 0;
+
+        // Function to get a random enemy health between 5 and 15
+        function getRandomHealth() {
+            return Math.floor(Math.random() * (15 - 5 + 1)) + 5;
+        }
+
+        // Increase the number in the mini-game when clicking the circle
+        miniGameCircle.addEventListener('click', function() {
+            mantissa *= 2; // Double the mantissa
+            if (mantissa >= 10) {
+                mantissa /= 10;  // Divide mantissa by 10 if it reaches 10 or more
+                exponent += 1;   // Increase exponent
+            }
+            updateMiniGame();
+        });
+
+        // Update the mini-game display
+        function updateMiniGame() {
+            // Floored mantissa to the nearest hundredth
+            const mantissaText = Math.floor(mantissa * 100) / 100;  // Floor to nearest hundredth
+            const exponentText = exponent;
+            mantissaExponentDisplay.textContent = `${mantissaText}e${exponentText}`;  // Display as (a)e(b)
+        }
+
+        // Function to update health bar color and size
+        function updateHealthBar() {
+            let healthRatio = enemyHealth / maxHealth;
+
+            // Change color based on health ratio
+            if (healthRatio >= 0.75) {
+                healthBar.style.backgroundColor = '#00ff00'; // Green
+            } else if (healthRatio >= 0.25) {
+                healthBar.style.backgroundColor = '#ffcc00'; // Yellow
+            } else {
+                healthBar.style.backgroundColor = '#ff0000'; // Red
+            }
+
+            // Update the size of the health bar (width is a percentage of maxHealth)
+            healthBar.style.width = `${Math.max(healthRatio * 100, 0)}%`;
+        }
+
+        // Functions to update the game state
+        function updateGame() {
+            coinDisplay.textContent = `Coins: ${coins}`;
+            damageDisplay.textContent = `Damage per Second: ${Math.round(calculateDPS())}`;
+            updateHealthBar(); // Update health bar color and size
+            enemyHealthDisplay.textContent = `Health: ${Math.round(enemyHealth * 10) / 10}/${Math.round(maxHealth * 10) / 10}`; // Display health rounded to the nearest tenth
+            // Update button texts with the new costs
+            upgradeDamageBtn.textContent = `Buy x1.5 Damage (${upgradeDamageCost} coins)`;
+            upgradeHealthBtn.textContent = `Buy x2 Health (${upgradeHealthCost} coins)`;
+        }
+
+        function dealDamage() {
+            const currentTime = Date.now();
+            clicksPerSecond = (1000 / (currentTime - lastClickTime)) || 0;  // Calculate clicks per second
+            lastClickTime = currentTime;
+            enemyHealth -= damage;
+            if (enemyHealth <= 0) {
+                coins += Math.floor(0.5 * Math.pow(maxHealth, 1.3) * (Math.random() + 0.5));
+                maxHealth = getRandomHealth() * healthUpgradeMultiplier; // Apply the health multiplier here
+                enemyHealth = maxHealth; // Reset the enemy health to the new max health
+                statusDisplay.textContent = 'You killed the enemy! Coins earned.';
+            } else {
+                statusDisplay.textContent = `You dealt ${damage} damage!`;
+            }
+            updateGame();
+        }
+
+        function buyDamageUpgrade() {
+            if (coins >= upgradeDamageCost) {
+                coins -= upgradeDamageCost;
+                damage *= 1.5; // Increase damage by 1.5x
+                upgradeDamageCost *= 2; // Double the cost for the next upgrade
+                statusDisplay.textContent = `Damage upgraded! Now you deal ${damage} damage per click.`;
+                updateGame();
+            } else {
+                statusDisplay.textContent = `Not enough coins for damage upgrade.`;
+            }
+        }
+
+        function buyHealthUpgrade() {
+            if (coins >= upgradeHealthCost) {
+                coins -= upgradeHealthCost;
+                healthUpgradeMultiplier *= 2; // Permanent doubling of health multiplier
+                maxHealth = getRandomHealth() * healthUpgradeMultiplier; // Apply the new multiplier to max health
+                enemyHealth = maxHealth;
+                upgradeHealthCost *= 3; // Triple the cost for the next health upgrade
+                statusDisplay.textContent = `Enemy health doubled! Now it has ${Math.round(maxHealth * 10) / 10} HP.`;
+                updateGame();
+            } else {
+                statusDisplay.textContent = `Not enough coins for health upgrade.`;
+            }
+        }
+
+        function buyAutoclicker() {
+            if (coins >= autoclickerCost) {
+                coins -= autoclickerCost;
+                autoclickerRate = 2; // 2 clicks per second
+                autoclickerBtn.style.display = "none"; // Hide the autoclicker button after purchase
+                statusDisplay.textContent = `Autoclicker purchased! It clicks ${autoclickerRate} times per second.`;
+                updateGame();
+            } else {
+                statusDisplay.textContent = `Not enough coins for autoclicker.`;
+            }
+        }
+
+        function autoclick() {
+            if (autoclickerRate > 0) {
+                // Simulate 2 clicks per second
+                for (let i = 0; i < autoclickerRate; i++) {
+                    enemyHealth -= damage; // Each click applies damage
+                    if (enemyHealth <= 0) {
+                        coins += Math.floor(0.5 * Math.pow(maxHealth, 1.3) * (Math.random() + 0.5));
+                        maxHealth = getRandomHealth() * healthUpgradeMultiplier; // Apply the health multiplier here
+                        enemyHealth = maxHealth; // Reset the enemy health to the new max health
+                    }
+                }
+            }
+            updateGame();
+        }
+
+        // Calculate DPS (damage per second)
+        function calculateDPS() {
+            return damage * clicksPerSecond + (autoclickerRate * damage); // Include the autoclicker DPS
+        }
+
+        // Event listeners
+        clickBtn.addEventListener('click', dealDamage);
+        upgradeDamageBtn.addEventListener('click', buyDamageUpgrade);
+        upgradeHealthBtn.addEventListener('click', buyHealthUpgrade);
+        autoclickerBtn.addEventListener('click', buyAutoclicker);
+
+        // Game loop for autoclicker (only works after purchase)
+        setInterval(() => {
+            if (autoclickerRate > 0) {
+                autoclick();
+            }
+        }, 500); // Run the autoclicker every 500ms (2 clicks per second)
+
+        // Update DPS every second
+        setInterval(updateGame, 1000);
+    </script>
+</body>
+</html>
+
